@@ -1,5 +1,6 @@
-// API base URL — React reads from .env (VITE_ prefix required)
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Dev: VITE_API_URL=http://localhost:3002 (cross-origin, Vite on 8080 / API on 3002)
+// Prod: VITE_API_URL=''  (same-origin, Express serves both on port 3002)
+const BASE = import.meta.env.VITE_API_URL ?? '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

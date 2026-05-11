@@ -2,20 +2,38 @@ require('dotenv').config();
 const express = require('express');
 const mysql   = require('mysql2/promise');
 const cors    = require('cors');
+const path    = require('path');
 
-const app  = express();
-const PORT = process.env.PORT || 3001;
+const app    = express();
+const PORT   = process.env.PORT   || 3002;
+const isProd = process.env.NODE_ENV === 'production';
+const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+
+// Trust reverse proxy (Nginx/Apache) so req.ip and secure headers work correctly
+app.set('trust proxy', 1);
 
 // ── Middleware ────────────────────────────────────────────────
-app.use(cors({ origin: '*' }));   // allow React dev server
+// In production, restrict CORS to the production domain.
+// In development, Vite runs on a different port, so allow all.
+app.use(cors({ origin: isProd ? APP_URL : '*' }));
 app.use(express.json());
+
+// ── Serve built React frontend (production) ───────────────────
+if (isProd) {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use('/hrdc', express.static(distPath));
+  // Catch-all: serve index.html for any /hrdc/* route (SPA fallback)
+  app.get(['/hrdc', '/hrdc/*'], (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // ── DB Pool ───────────────────────────────────────────────────
 const pool = mysql.createPool({
   host:     process.env.DB_HOST     || 'localhost',
   port:     parseInt(process.env.DB_PORT || '3306'),
-  user:     process.env.DB_USER     || 'admin',
-  password: process.env.DB_PASSWORD || '@dminPhn17',
+  user:     process.env.DB_USER     || 'root',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME     || 'hrdc_training',
   waitForConnections: true,
   connectionLimit:    10,
@@ -36,7 +54,7 @@ app.get('/api/trainings', async (_req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT
-         id, title, department, 
+         id, title, department,
          DATE_FORMAT(training_date,  '%d/%m/%Y') AS training_date,
          DATE_FORMAT(due_grant_date, '%d/%m/%Y') AS due_grant_date,
          cost, pic, need_hrdc, status, vendor, pax, notes,
@@ -110,12 +128,10 @@ app.get('/api/departments', async (_req, res) => {
 });
 
 // ── POST /api/trainings  — create ────────────────────────────
-// due_grant_date is GENERATED (auto = training_date - 14 days), never sent by client
 app.post('/api/trainings', async (req, res) => {
   try {
     const { title, department, training_date, cost, pic, need_hrdc, status, vendor, pax, notes } = req.body;
 
-    // Basic validation
     if (!title || !department || !training_date || cost === undefined) {
       return res.status(400).json({ success: false, message: 'title, department, training_date and cost are required.' });
     }
@@ -126,7 +142,7 @@ app.post('/api/trainings', async (req, res) => {
       [
         title,
         department,
-        training_date,                          // YYYY-MM-DD from client
+        training_date,
         parseFloat(cost),
         pic        || 'Fikri',
         need_hrdc  !== undefined ? need_hrdc : 1,
@@ -137,7 +153,6 @@ app.post('/api/trainings', async (req, res) => {
       ]
     );
 
-    // Return newly created row with generated due_grant_date
     const [[newRow]] = await pool.query(
       `SELECT id, title, department,
          DATE_FORMAT(training_date,  '%d/%m/%Y') AS training_date,
@@ -205,6 +220,13 @@ app.delete('/api/trainings/:id', async (req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🚀 HRDC Training API running at http://localhost:${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
+  console.log(`\nHRDC Training API running on port ${PORT}`);
+  if (isProd) {
+    console.log(`   App:          ${APP_URL}/hrdc/`);
+    console.log(`   Health check: ${APP_URL}/api/health`);
+  } else {
+    console.log(`   App:          http://localhost:${PORT}/hrdc/`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  }
+  console.log();
 });
