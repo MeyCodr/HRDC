@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'hrdc-api',
       script: 'server/server.js',
-      cwd: '/var/www/app/HRDC',
+      cwd: '/var/www/app/hrdc',
       instances: 1,
       autorestart: true,
       watch: false,
