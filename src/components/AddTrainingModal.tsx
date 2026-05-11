@@ -8,8 +8,6 @@ interface AddTrainingModalProps {
   onSuccess: () => void;
 }
 
-const DEPARTMENTS = ['IT', 'HR', 'Finance', 'Operations', 'Sales', 'QA', 'Engineering', 'Legal', 'Admin'];
-
 function calcDueDate(trainingDate: string): string {
   if (!trainingDate) return '';
   const d = new Date(trainingDate);
@@ -29,14 +27,16 @@ export function AddTrainingModal({ open, onClose, onSuccess }: AddTrainingModalP
     vendor: '',
     notes: '',
   });
+  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
 
-  // Reset form on open
+  // Reset form and load departments on open
   useEffect(() => {
     if (open) {
       setForm({ title: '', department: '', training_date: '', cost: 0, pic: 'Fikri', need_hrdc: 1, pax: 1, vendor: '', notes: '' });
       setError('');
+      api.getDepartments().then(res => setDepartments(res.data)).catch(() => {});
     }
   }, [open]);
 
@@ -114,7 +114,7 @@ export function AddTrainingModal({ open, onClose, onSuccess }: AddTrainingModalP
               className="w-full px-3 py-2.5 text-sm border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
             >
               <option value="">— Select Department —</option>
-              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              {departments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
